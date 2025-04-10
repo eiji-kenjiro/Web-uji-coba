@@ -1,83 +1,238 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jasa Web Arvan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Akari Endless</title>
   <style>
     body {
       margin: 0;
-      padding: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f2f4f8;
-      color: #333;
-    }
-
-    header {
-      background-color: #4a90e2;
+      background: black;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       color: white;
-      text-align: center;
-      padding: 2rem 1rem;
-      border-bottom: 4px solid #357ABD;
     }
-
-    .container {
-      max-width: 600px;
-      margin: 2rem auto;
-      padding: 1rem;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    canvas {
+      border: 3px solid #0ff;
+      background: #111;
+      image-rendering: pixelated;
+      margin-top: 10px;
     }
-
-    h1 {
-      font-size: 2rem;
+    #controls {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 50px 50px 50px;
+      gap: 5px;
     }
-
-    p {
-      font-size: 1.1rem;
-      line-height: 1.6;
-    }
-
     .btn {
-      display: inline-block;
-      margin-top: 1rem;
-      padding: 10px 20px;
-      background-color: #4a90e2;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      text-decoration: none;
-      font-weight: bold;
-      transition: background 0.3s;
-    }
-
-    .btn:hover {
-      background-color: #357ABD;
-    }
-
-    img {
-      max-width: 100%;
+      width: 50px;
+      height: 50px;
+      font-size: 24px;
+      background: #222;
+      color: #0ff;
+      border: 1px solid #0ff;
       border-radius: 10px;
-      margin-top: 1rem;
+    }
+    #gameOverBox {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      padding: 20px;
+      border: 2px solid #f0f;
+      border-radius: 10px;
+      display: none;
+      text-align: center;
+    }
+    #gameOverBox button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      background: #0ff;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
+  <h2>Akari Endless</h2>
+  <canvas id="gameCanvas" width="256" height="256"></canvas>
 
-  <header>
-    <h1>Jasa Website oleh Eiji</h1>
-    <p>Saya siap bantu bikin website simpel dan menarik!</p>
-  </header>
-
-  <div class="container">
-    <h2>Kenapa pilih saya?</h2>
-    <p>Saya bisa membuat website cepat, ringan, tk tw lagi nk tulis ape😃.</p>
-    
-    <a href="https://wa.me/+6282347927180" class="btn">Hubungi Saya</a>
-    
-    <img src="https://source.unsplash.com/600x400/?technology" alt="pura² liat gambar ok😁👍" />
+  <div id="controls">
+    <button class="btn" onclick="touch('up')">↑</button>
+    <div></div>
+    <button class="btn" onclick="touch('right')">→</button>
+    <button class="btn" onclick="touch('left')">←</button>
+    <button class="btn" onclick="touch('down')">↓</button>
   </div>
 
+  <div id="gameOverBox">
+    <h3>Game Over!</h3>
+    <p id="endMessage"></p>
+    <button onclick="restartGame()">Main Lagi</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameOverBox = document.getElementById('gameOverBox');
+    const endMessage = document.getElementById('endMessage');
+
+    const player = { x: 120, y: 120, size: 14, color: '#0f0', speed: 2 };
+    let enemies = [];
+    let keys = {};
+    let score = 0;
+    let level = 1;
+    let lives = 3;
+    let highScore = localStorage.getItem('akariHighScore') || 0;
+    let gameOver = false;
+
+    document.addEventListener('keydown', e => keys[e.key] = true);
+    document.addEventListener('keyup', e => keys[e.key] = false);
+
+    function touch(dir) {
+      keys['ArrowUp'] = dir === 'up';
+      keys['ArrowDown'] = dir === 'down';
+      keys['ArrowLeft'] = dir === 'left';
+      keys['ArrowRight'] = dir === 'right';
+      setTimeout(() => keys = {}, 150);
+    }
+
+    function drawText() {
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Score: ${score}`, 10, 15);
+      ctx.fillText(`Level: ${level}`, 10, 30);
+      ctx.fillText(`Lives: ${lives}`, 10, 45);
+      ctx.fillText(`High: ${highScore}`, 10, 60);
+    }
+
+    function movePlayer() {
+      if (keys['ArrowUp']) player.y -= player.speed;
+      if (keys['ArrowDown']) player.y += player.speed;
+      if (keys['ArrowLeft']) player.x -= player.speed;
+      if (keys['ArrowRight']) player.x += player.speed;
+
+      player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+      player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+    }
+
+    function spawnEnemy() {
+      const dirX = Math.random() > 0.5 ? 1 : -1;
+      const dirY = Math.random() > 0.5 ? 1 : -1;
+      enemies.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: 14,
+        dx: dirX * (1 + level * 0.2),
+        dy: dirY * (1 + level * 0.2),
+        color: `hsl(${Math.random()*360}, 100%, 60%)`
+      });
+    }
+
+    function moveEnemies() {
+      for (let enemy of enemies) {
+        enemy.x += enemy.dx;
+        enemy.y += enemy.dy;
+
+        if (enemy.x <= 0 || enemy.x + enemy.size >= canvas.width) enemy.dx *= -1;
+        if (enemy.y <= 0 || enemy.y + enemy.size >= canvas.height) enemy.dy *= -1;
+      }
+    }
+
+    function checkCollision(e) {
+      return (
+        player.x < e.x + e.size &&
+        player.x + player.size > e.x &&
+        player.y < e.y + e.size &&
+        player.y + player.size > e.y
+      );
+    }
+
+    function handleCollision() {
+      for (let enemy of enemies) {
+        if (checkCollision(enemy)) {
+          lives--;
+          enemies = [];
+          level = 1;
+          flash();
+          if (lives <= 0) {
+            endGame();
+          } else {
+            player.x = 120;
+            player.y = 120;
+          }
+          break;
+        }
+      }
+    }
+
+    function flash() {
+      canvas.style.borderColor = '#f00';
+      setTimeout(() => canvas.style.borderColor = '#0ff', 200);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawText();
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.size, player.size);
+
+      for (let e of enemies) {
+        ctx.fillStyle = e.color;
+        ctx.fillRect(e.x, e.y, e.size, e.size);
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      if (score > highScore) {
+        localStorage.setItem('akariHighScore', score);
+        highScore = score;
+      }
+      endMessage.textContent = `Skor kamu: ${score}\nRekor tertinggi: ${highScore}`;
+      gameOverBox.style.display = 'block';
+    }
+
+    function restartGame() {
+      player.x = 120;
+      player.y = 120;
+      score = 0;
+      level = 1;
+      lives = 3;
+      enemies = [];
+      gameOver = false;
+      gameOverBox.style.display = 'none';
+      gameLoop();
+    }
+
+    function gameLoop() {
+      if (gameOver) return;
+      movePlayer();
+      moveEnemies();
+      handleCollision();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Level Up & Enemy Spawn
+    setInterval(() => {
+      if (!gameOver) {
+        score++;
+        if (score % 10 === 0) {
+          level++;
+        }
+        if (score % 5 === 0) {
+          spawnEnemy();
+        }
+      }
+    }, 1000);
+
+    // Mulai Game
+    spawnEnemy();
+    gameLoop();
+  </script>
 </body>
 </html>
